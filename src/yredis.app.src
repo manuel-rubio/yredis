@@ -1,0 +1,11 @@
+{application, yredis, [
+    {description, "yuilop eredis wrapper for pool and sharding"},
+    {vsn, "0.1.0"},
+    {registered, []},
+    {applications, [
+        kernel,
+        stdlib,
+        eredis
+    ]},
+    {env, []}
+]}.
