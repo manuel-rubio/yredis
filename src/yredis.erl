@@ -5,13 +5,16 @@
 -define(SERVER, ?MODULE).
 
 %% API
--export([start_link/1, stop/0, multi/2, getter/2, setter/3, set_add/3, set_rem/3, set_members/2, command/2, command/3, hget/4, hset/4]).
+-export([start_link/1, stop/0, multi/2, getter/2, setter/3, set_add/3, set_rem/3, set_members/2, command/2, command/3, hget/4, hset/4, get_shards/0]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
--record(state, {pool}).
+-record(state, {
+    pool = [] :: list(pid()),
+    shards = [] :: list(binary())
+}).
 
 %%====================================================================
 %% API
@@ -89,6 +92,9 @@ setter(Shard, Key, Value) ->
     {ok, Worker} = gen_server:call(?SERVER, {worker, Shard}),
     gen_server:call(Worker, {set, Key, Value}).
 
+get_shards() ->
+    gen_server:call(?SERVER, shards).
+
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
@@ -109,7 +115,8 @@ init([{Shard, {Server, Port, Database, Password, PoolSize}}|TailPool], State) ->
         {ok, Pid} = yredis_sup:add_worker(Shard, Server, Port, Database, Password),
         Pid
     end, lists:seq(1, PoolSize)),
-    init(TailPool, #state{pool = [{Shard, Pool}|State#state.pool]}).
+    Shards = State#state.shards ++ [Shard],
+    init(TailPool, #state{pool = [{Shard, Pool}|State#state.pool], shards=Shards}).
 
 init(Data) ->
     init(Data, #state{pool=[]}).
@@ -133,12 +140,15 @@ handle_call({worker, Shard}, From, #state{pool=Pool}=State) ->
             {reply, {ok, C}, State#state{
                 pool=proplists:delete(Shard, Pool) ++ [{Shard, T ++ [C]}]
             }};
+        undefined when Shard =:= <<"default">> ->
+            {reply, error, State};
         undefined ->
-            handle_call({worker, default}, From, State)
+            handle_call({worker, <<"default">>}, From, State)
     end;
-handle_call(_Request, _From, State) ->
-    Reply = noproc,
-    {reply, Reply, State}.
+handle_call(shards, _From, State) ->
+    {reply, State#state.shards, State};
+handle_call(_Msg, _From, State) ->
+    {reply, noproc, State}.
 
 %%--------------------------------------------------------------------
 %% @spec handle_cast(Msg, State) -> {noreply, State} |
@@ -172,9 +182,7 @@ handle_info(_Info, State) ->
 %%--------------------------------------------------------------------
 terminate(_Reason, State) ->
     lists:foreach(fun({_Shard, Pool}) ->
-        lists:foreach(fun(X) ->
-            gen_server:call(X, stop)
-        end, Pool)
+        [ gen_server:call(X, stop) || X <- Pool ]
     end, State#state.pool),
     ok.
 
