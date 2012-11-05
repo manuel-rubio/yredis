@@ -11,8 +11,11 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
+-type pid_pool() :: list(pid()).
+-type shard_config() :: {shard_config(), pid_pool()}.
+
 -record(state, {
-    pool = [] :: list(pid()),
+    pool = [] :: list(shard_config()),
     shards = [] :: list(binary())
 }).
 
@@ -107,6 +110,19 @@ get_shards() ->
 %% @doc Initiates the server
 %% @end 
 %%--------------------------------------------------------------------
+
+-type shard() :: binary().
+
+-type eredis_config() :: {
+    Host::string(), Port::integer(), Database::integer(),
+    Password::integer(), PoolSize::integer()
+}.
+
+-spec init(Data::list({shard(), eredis_config()}), State::#state{}) ->
+    {ok, State::#state{}} | 
+    {ok, State::#state{}, Timeout::(integer() | infinity)} |
+     ignore | {stop, Reason::term()}.
+
 init([], State) ->
     {ok, State};
 init([{Shard, {Server, Port, Database, Password, PoolSize}}|TailPool], State) ->
@@ -117,6 +133,12 @@ init([{Shard, {Server, Port, Database, Password, PoolSize}}|TailPool], State) ->
     end, lists:seq(1, PoolSize)),
     Shards = State#state.shards ++ [Shard],
     init(TailPool, #state{pool = [{Shard, Pool}|State#state.pool], shards=Shards}).
+
+-spec init(Data::list({shard(), eredis_config()})) ->
+    {ok, State::#state{}} | 
+    {ok, State::#state{}, Timeout::(non_neg_integer() | hibernate | infinity)} |
+    {stop, Reason::term()} |
+     ignore | {stop, Reason::term()}.
 
 init(Data) ->
     init(Data, #state{pool=[]}).
