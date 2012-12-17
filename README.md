@@ -3,13 +3,13 @@ yredis
 
 Yuilop eredis wrapper for pool and sharding.
 
-The system could be launched throught `yredis:start_link(Config)` and Config is defined as:
+The system can be launched throught `yredis:start_link(Config)` and Config is defined as:
 
 ```erlang
 {Shard, {Server, Port, Database, Password, PoolSize}}
 ```
 
-The options means:
+The options mean:
 
 * *Shard*: key to use a database pool instead of other. _default_ are used if none matchs.
 * *Server*: redis server IP or hostname.
@@ -27,7 +27,7 @@ Config = [
 ].
 ```
 
-You could use this configuration with the following code:
+You can use this configuration with the following code:
 
 ```erlang
 yredis:start(Config).
